@@ -1,0 +1,126 @@
+%preparing workspace
+clc
+clear
+close all
+
+%constants
+k=1.38e-23;
+hbar=1.0546e-34;
+m0=9.1e-31;
+e=1.6e-19;
+
+%initial paramets
+a=3e-9;                 %size of chanel
+b=2e-9;                 %size of barrie
+U0=1;                   %height of barrier, 1 eV
+m1=0.067*m0;            %eff. mass in GaAs, kg
+m2=(0.067+0.083*0.3)*m0;%eff. mass in AlGaAs(0.3), kg
+j=2;                   %amount of bariers
+N=1;                   %amount of iterations
+Nen=200;
+    dx=2e-10;
+    L=j*a+(j+1)*b;
+    Np=floor(L/dx);
+    koef=-hbar^2/(2*m1*(dx^2))/e;
+    x=(0:Np-1)*dx;
+
+    E=eye(Np)*(-2);
+    E=E+diag(ones(1,Np-1)*(1),-1);
+    E=E+diag(ones(1,Np-1)*(1),1);
+    E=E*koef;
+    for t=0:(2*j-1)
+        if(mod(t,2)==0)
+        E(:,floor(Np*(floor(t/2)*(a+b)+b)/L):floor(Np*(floor(t/2)+1)*(a+b)/L))=E(:,floor(Np*(floor(t/2)*(a+b)+b)/L):floor(Np*(floor(t/2)+1)*(a+b)/L))/(m1/m2);
+        end
+    end
+    U=zeros(1,Np);
+    for t=0:(2*j-1)
+        if(mod(t,2)==0)
+        U(floor(Np*(floor(t/2)*(a+b)+b)/L):floor(Np*(floor(t/2)+1)*(a+b)/L))=U0;
+        end
+    end
+    H=E+diag(U);
+
+    Umax=1.1;
+%     Ener=linspace(0.486-0.5,0.486+0.5,Nen);
+
+    Ener=linspace(0,Umax,Nen);
+    D=zeros(1,Nen);
+    S1=zeros(Np);S2=S1;
+    for i=1:Nen
+        En=Ener(i);
+        S1(1,1)=koef*exp(1i*sqrt(2*m1*En*e)/hbar*dx);
+        S2(Np,Np)=koef*exp(1i*sqrt(2*m1*En*e)/hbar*dx);
+        G1=1i*(S1-S1');
+        G2=1i*(S2-S2');
+        Gr=(eye(Np)*(En)-H-S1-S2);
+        D(i)=real(trace(G1/Gr*G2/Gr'));
+   end
+    
+    Emax=Ener(islocalmax(D)); 
+    if(isempty(Emax))
+        Emax=-e;
+    end
+    
+    f=figure ('Units','normalized','OuterPosition', [0 0 0.55 0.55]);
+    subplot(1,3,3)
+    semilogx(D,Ener)
+    ylabel('E,эВ')
+    xlabel('log(D)')
+    title('Коэффициент прохождения log')
+    ylim([0, Umax])
+%     y1=yline(mean(Emax), '-',[' ',num2str(round(mean(Emax)*1000)), ' мэВ']);
+%     y1.LabelHorizontalAlignment = 'center';
+%     
+    
+    subplot(1,3,2)
+    plot(D,Ener)
+    ylabel('E,эВ')
+    xlabel('D')
+    title('Коэффициент прохождения')
+    ylim([0, Umax])
+    xlim([0 1])
+    hold on
+    for i=1:length(Emax)
+         plot([0 1.05], [1 1]*Emax(i), '--k','LineWidth',0.5);
+    end
+
+    subplot(1,3,1)
+    plot(x*1e9,U)
+    hold on
+    ylim([0, Umax])
+    xlim([x(1), x(end)]*1e9)
+    xlabel('x,нм')
+    ylabel('U, эВ')
+    title('Энергетический профиль стуктуры')
+    yline(mean(Emax), '-');
+    sz=10-7/13*(j-2);
+    annotation(f,'doublearrow',[0.25 0.25],[0.111524163568773 0.8515]);
+    annotation(f,'textbox',...
+    [0.23 0.4 0.04 0.02],...
+    'String','1 эВ',...
+    'LineStyle','none',...
+    'Interpreter','tex',...    
+    'VerticalAlignment','cap');
+    annotation(f,'doublearrow',[0.1307+(0.3422-0.1307)/(2*j+1) 0.1307+2*(0.3422-0.1307)/(2*j+1)],[0.5 0.5],...
+    'Head2Width',sz,'Head2Length',sz,'Head1Width',sz,'Head1Length',sz);
+    annotation(f,'textbox',...
+    [0.1307+(0.3422-0.1307)/(2*j+1) 0.45 (0.3422-0.1307)/(2*j+1) 0.1],...
+    'String','2 нм',...
+    'LineStyle','none',...
+    'Interpreter','tex',...    
+    'VerticalAlignment','cap',...
+    'HorizontalAlignment','center',...
+    'FitBoxToText','off');
+    annotation(f,'doublearrow',[0.3425-2*(0.3425-0.1307)/(2*j+1) 0.3425-3*(0.3425-0.1307)/(2*j+1)],...
+    [0.5 0.5],...
+    'Head2Width',sz,'Head2Length',sz,'Head1Width',sz,'Head1Length',sz);
+    annotation(f,'textbox',...
+    [0.3422-3*(0.3422-0.1307)/(2*j+1) 0.45 (0.3422-0.1307)/(2*j+1) 0.1],...
+    'String','3 нм',...
+    'HorizontalAlignment','center',...
+    'LineStyle','none',...
+    'FitBoxToText','off');
+     exportgraphics(f,[num2str(j),'.jpg']);
+%     close (f)
+

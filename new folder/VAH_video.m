@@ -1,0 +1,187 @@
+%preparing workspace
+clc
+clear
+close all
+
+%constants
+k=1.38e-23;
+hbar=1.0546e-34;
+m0=9.1e-31;
+e=1.6e-19;
+
+%initial paramets
+T=300;                  %room temperature, K
+a=3e-9;                 %size of chanel, 3nm
+b=2e-9;                 %size of barrier, 2nm
+U0=1*e;                 %height of barrier, 1 eV
+m=0.067*m0;             %eff. mass in GaAs, kg
+mb=(0.067+0.083*0.5)*m0;%eff. mass in AlGaAs(0.5), kg
+Ef=0.14*e;              %Fermi energy, eV (at T=300)(0,14)
+Eg=1.42*e;              %gap energy, eV
+v=1e6;                  %frequency, 1Mhz
+Ez=0.1*e;             %connection energy
+V=@(t)1*sin(2*pi*v*t);    %periodic voltage, V
+
+eps0=0.244*e;
+
+% eps=@(nw,t)(eps0-e*V(t)/2+Ez*nw+abs(eps0-e*V(t)/2+Ez*nw))/2;
+eps=@(nw,t)(eps0-e*V(t)/2+Ez*nw);
+
+Eks=@(nw,t)eps(nw,t);
+Ekd=@(nw,t)eps(nw,t)+e*V(t);
+Ekw=@(nw,t)eps0;
+
+wsw=@(nw,t)sqrt(2*Eks(nw,t)/m)/b;
+wdw=@(nw,t)sqrt(2*Ekd(nw,t)/m)/b;
+wws=@(nw,t)sqrt(2*Ekw(nw,t)/m)/b;
+wwd=@(nw,t)wws(nw,t);
+
+f2d=@(EF,E,E0) log(1+exp(-(E-EF)/(k*T))).*heaviside(E-E0);
+
+% E=linspace(0,2)*e;
+% figure('Units','normalized','OuterPosition',[.2 .2 .6 .6])
+% plot(E/e,f2d(Ef,E,0))
+% xline(Eg/e,'-','E_c')
+% xline(Ef/e,'--','E_f')
+% xline(0/e,'--','E_v')
+% xline(Ef/e-1,'--','E_f-eV')
+% xline(Ef/e+1,'--','E_f+eV')
+% xline(eps0/e, '--','\epsilon_0')
+% grid on
+% ylabel('$E,eV$','Interpreter','latex')
+% xlabel('$f_{2d}$','Interpreter','latex')
+% title('$2D$ $distribution$','Interpreter','latex')
+% close all
+
+Efs=Ef;
+Efd=@(t)Ef-e*(V(t));
+
+ns=@(nw,t)f2d(Efs,eps(nw,t),0);       %
+nd=@(nw,t)f2d(Efd(t),eps(nw,t),-e*(V(t)));    %
+
+
+jsw=@(nw,t)wsw(nw,t).*ns(nw,t).*(1-nw);
+jdw=@(nw,t)wdw(nw,t).*nd(nw,t).*(1-nw);
+jws=@(nw,t)wws(nw,t).*nw;
+jwd=@(nw,t)wwd(nw,t).*nw;
+
+eq = @(nw,t)jsw(nw,t)+jdw(nw,t)-jws(nw,t)-jwd(nw,t);
+Nw0=0;
+[t,Nw]=ode15s(@(t,nw)eq(nw,t),[0 1/v],Nw0,odeset('Mass',10,'RelTol',1e-10));
+
+J=jsw(Nw,t)-jdw(Nw,t)-jws(Nw,t)+jwd(Nw,t);
+V=V(t);
+
+% figure('Units','normalized','OuterPosition',[0 0 1 1])
+x=[0,b,b,2*b,2*b,2*b+a,2*b+a,3*b+a,3*b+a,4*b+a]*1e9;
+y=[0 0 1 1 0 0 1 1 0 0];
+% v = VideoWriter('newfile.avi','Motion JPEG AVI');
+% v.Quality = 95;
+% v.FrameRate=20;
+% open(v);
+k=0;
+for i=65:2:300 
+    f=figure('Units','normalized','OuterPosition',[1 0 0.8 1])
+    subplot(2,2,[1])
+    y=[0 0 1 1-b/(2*b+a)*V(i) 0-b/(2*b+a)*V(i) 0-(a+b)/(2*b+a)*V(i) 1-(a+b)/(2*b+a)*V(i) 1-V(i) 0-V(i) 0-V(i)];
+    plot(x,y)                                   %structure
+    hold on
+    grid on
+%     step=0;
+    k=i;
+%     if(k>1)
+%         while(-t(k)+t(k+1)<1e-9)
+%             step=step+1;
+%             k=k+step;
+%         end
+%     end
+    
+    plot([2*b,2*b+a]*1e9,[1 1]*eps(Nw(k),t(k))/e)   %well energy value
+%     text(1,1.65, sprintf('$t=%2.3fns$',t(k)*1e9),'Interpreter','latex','FontSize',14)
+    text(1,1.55, sprintf('$V=%2.2fB$',V(k)),'Interpreter','latex','FontSize',14)
+%     text(1,1.45, sprintf('$n_w(t)=%2.2f$',Nw(k)),'Interpreter','latex','FontSize',14)
+%     text(1,1.35, sprintf('$e(t)=%2.2geV$',eps(Nw(k),t(k))/e),'Interpreter','latex','FontSize',14)
+%         %source->well current
+%     text(b*1e9,0.5,'\rightarrow','HorizontalAlignment','center','FontSize',14)
+%     text(b*1e9,-0.1,sprintf('$j_{sw}=%.1g$',jsw(Nw(k),t(k))),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%         %source<-well current
+%     text(2*b*1e9,0.5-b/(2*b+a)*V(i),'\leftarrow','HorizontalAlignment','center','FontSize',14)
+%     text(2*b*1e9,-0.3-b/(2*b+a)*V(i),sprintf('$j_{ws}=%.1g$',jws(Nw(k),t(k))),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%         %drain<-well current
+%     text((2*b+a)*1e9,0.5-(a+b)/(2*b+a)*V(i),'\rightarrow','HorizontalAlignment','center','FontSize',14)
+%     text((2*b+a)*1e9,-0.4-(a+b)/(2*b+a)*V(i),sprintf('$j_{wd}=%.1g$',jwd(Nw(k),t(k))),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%         %drain->well current
+%     text((3*b+a)*1e9,0.5-V(i),'\leftarrow','HorizontalAlignment','center','FontSize',14)
+%     text((3*b+a)*1e9,-0.1-V(i),sprintf('$j_{dw}=%.1g$',jdw(Nw(k),t(k))),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%         %sum current
+    J_1=jsw(Nw(k),t(k))-jdw(Nw(k),t(k))-jws(Nw(k),t(k))+jwd(Nw(k),t(k));
+%     if (J_1>=0)
+%         text((2*b+a/2)*1e9,1.2-(0.5*a+b)/(2*b+a)*V(i),'\rightarrow','HorizontalAlignment','center','FontSize',14)
+%         text((2*b+a/2)*1e9,1.1-(0.5*a+b)/(2*b+a)*V(i),sprintf('$J=%.1g$',J_1),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%     else
+%         text((2*b+a/2)*1e9,1.2-(0.5*a+b)/(2*b+a)*V(i),'\leftarrow','HorizontalAlignment','center','FontSize',14)
+%         text((2*b+a/2)*1e9,1.1-(0.5*a+b)/(2*b+a)*V(i),sprintf('$J=%.1g$',-J_1),'Interpreter','latex','HorizontalAlignment','center','FontSize',14)
+%     end
+%         %f2d f-s
+    Uf=linspace(min(-e*(V(k)),0), e);
+    plot(-f2d(Efs,Uf,0)/4,Uf/e,'--')
+    plot((4*b+a)*1e9+f2d(Efd(t(k)),Uf,-e*(V(k)))/4,Uf/e,'--')
+    
+    ylim([-1, 2])
+    xlim([-4.5, 15.5])
+    
+    subplot(2,2,2)
+    plot(V,J*e)
+    grid on
+    ylabel('$J,{A \over m^2*s}$','Interpreter','latex','FontSize',14)
+    xlabel('$Voltage,V$','Interpreter','latex','FontSize',14)
+    title('$VCC$','Interpreter','latex','FontSize',16)
+    hold on
+    plot(V(k),J_1*e,'ro')
+    
+    
+%     subplot(2,2,4)
+%     plot(t*1e6,Nw)
+%     grid on
+%     xlabel('$time,ms$','Interpreter','latex','FontSize',14)
+%     ylabel('$n_w$','Interpreter','latex','FontSize',14)
+%     title('$n_w=n_w(t)$','Interpreter','latex','FontSize',16)
+%     hold on
+%     plot(t(k)*1e6,Nw(k),'ro')
+    
+%     writeVideo(v,getframe(gcf));
+end
+% close(v)
+% close all
+% figure('Units','normalized','OuterPosition',[0 0 1 1])
+% subplot(2,2,1)
+% plot(t*1e6,Nw)
+% grid on
+% xlabel('$time,ms$','Interpreter','latex')
+% ylabel('$n_w$','Interpreter','latex')
+% title('$n_w=n_w(t)$','Interpreter','latex')
+% hold on
+% 
+% 
+% subplot(2,2,2)
+% plot(t*1e6,J*e)
+% grid on
+% xlabel('$time,ms$','Interpreter','latex')
+% ylabel('$J,{A \over m^2*s}$','Interpreter','latex')
+% title('$J=J(t)$','Interpreter','latex')
+% 
+% subplot(2,2,3)
+% plot(t*1e6,V)
+% grid on
+% xlabel('$time,ms$','Interpreter','latex')
+% ylabel('$Voltage,V$','Interpreter','latex')
+% title('$V=V(t)$','Interpreter','latex')
+% 
+% subplot(2,2,4)
+% plot(V,J*e)
+% grid on
+% ylabel('$J,{A \over m^2*s}$','Interpreter','latex')
+% xlabel('$Voltage,V$','Interpreter','latex')
+% title('$VCC$','Interpreter','latex')
+% xlim([0 inf])
+% ylim([0 inf])
